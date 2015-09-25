@@ -285,7 +285,28 @@ cat <<EOF >${CROOT}/boot/firmware/config.txt
 #arm_freq=800
 EOF
 
+echo 'dwc_otg.lpm_enable=0 console=tty1 root=/dev/mmcblk0p2 rootwait' > ${CROOT}/boot/firmware/cmdline.txt
+
+# XXX There are two links created - I have no idea why and whereto
+# ln -sf ${CROOT}/... config
+# ln -sf ${CROOT}/... cmdline
+
+
+# Load sound module on boot
+mkdir -p ${CROOT}/lib/modules-load.d
+cat <<EOF >${CROOT}/lib/modules-load.d/rpi2.conf
+snd_bcm2835
+bcm2708_rng
+EOF
+
+# Blacklist platform modules not applicable to the RPi2
+cat <<EOF >${CROOT}/etc/modprobe.d/rpi2.conf
+blacklist snd_soc_pcm512x_i2c
+blacklist snd_soc_pcm512x
+blacklist snd_soc_tas5713
+blacklist snd_soc_wm8804
+EOF
+
 echo "START"
 /bin/bash
 echo "CONTINUE"
-
