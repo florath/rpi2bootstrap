@@ -352,6 +352,6 @@ test -n "${USER_CHROOT_SH}" \
     && cr /bin/bash -x -e /user_chroot.sh \
     && rm ${CROOT}/user_chroot.sh
 
-echo "START"
-/bin/bash
-echo "CONTINUE"
+#echo "START"
+#/bin/bash
+#echo "CONTINUE"
