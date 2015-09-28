@@ -30,3 +30,25 @@ some additional packages and use the given USB stick as the key device.
      -s 2G -c chroot.sh -p vim,less,iputils-ping,openssh-client,openssh-server \
      -e usb-My_USB_STICK_AABBCC-0:0
 
+# Dependencies
+
+The following (Debian) packages are needed to run the script:
+
+* parted
+  For creating partitions of the disk image
+* mount (losetup)
+  For mounting the image partitions in the existing system
+* kpartx
+  For handling the partitions in the image
+* dmeventd / dmsetup
+  For device mapping
+* cryptsetup-bin
+  Handling encryption of the third patition
+* lvm2
+  The encrypted partition contains LVM volume(s).
+* debootstrap
+  For bootstraping the system
+* qemu-user-static
+  For cross-installation: the script can be executed on any
+  platform - not only on arm.
+  
