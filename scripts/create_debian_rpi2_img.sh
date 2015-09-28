@@ -8,8 +8,9 @@ set -e
 function usage() {
     test -n "$1" && echo "*** ERROR: $1" >&2
     cat <<EOF >&2
-Usage: create_debian_rpi_img -w working_dir -d distribution -v variant -s image_size
-                             -e enc_disk_id [-p pkglist] [-P proxy] [-c chroot_sh]
+Usage: create_debian_rpi_img --working-dir working_dir --distribution distribution --variant variant
+                             --size image_size --enc-disk-id enc_disk_id --features feature_list
+                             [--packages pkglist] [--proxy proxy] [-sh-chroot chroot_sh]
 where
   working_dir  is the place where the image is build
                Some gigs of HD space should be available there.
@@ -21,6 +22,11 @@ where
   proxy        [optional] when there is the need to set the http(s)_proxy
                set this to the appropriate url
   chroot_sh    [optional] Script that is executed in chroot
+  feature_list [optional] Coma seperated list of additional features.
+               Existing features are:
+               - selinux: switches on SELinux
+               - hardening-io: runs the os and ssh scripts from hardening.io
+               - disk-resize: adds a script to the image that resizes the LVM to the size of the disk.
 EOF
     exit 1
 }
@@ -33,42 +39,54 @@ PROXY=""
 ENC_DISK_ID=""
 ADD_PACKAGES=""
 USER_CHROOT_SH=""
+FEATURES=""
 
-while getopts "hw:d:v:s:P:e:p:c:" opt;
+BINDIR=$(dirname $0)
+PKGDIR=$(dirname ${BINDIR})
+FEATUREDIR=${PKGDIR}/features
+
+ARGS=$(getopt --options hw:D:V:s:e:p:P:c:f: \
+	      --longoptions "help,working-dir:,distribution:,variant:,size:,enc-disk-id:,packages:,proxy:,sh-chroot:,features:" \
+	      -n create_debian_rpi2_img -- "$@")
+test $? -ne 0 && exit 1
+
+eval set -- "$ARGS";
+
+while true;
 do
-    case ${opt} in
-	h)
+    case "$1" in
+	-D|--distribution)
+	    shift; DISTRIBUTION=$1 ;shift
+	    ;;
+	-P|--proxy)
+	    shift; PROXY=$1; shift
+	    ;;
+	-V|--variant)
+	    shift; VARIANT=$1; shift
+	    ;;
+	-c|--sh-chroot)
+	    shift; USER_CHROOT_SH=$1; shift
+	    ;;
+	-e|--enc-disk-id)
+	    shift; ENC_DISK_ID=$1; shift
+	    ;;
+	-f|--features)
+	    shift; FEATURES=$(echo $1 | tr "," " "); shift
+	    ;;
+	-h|--help)
 	    usage ""
 	    ;;
-	w)
-	    WORKING_DIR=${OPTARG}
+	-p|--packages)
+	    shift; ADD_PACKAGES=$1; shift
 	    ;;
-	c)
-	    USER_CHROOT_SH=${OPTARG}
+	-s|--size)
+	    shift; IMAGE_SIZE=$1; shift
 	    ;;
-	d)
-	    DISTRIBUTION=${OPTARG}
+	-w|--working-dir)
+	    shift; WORKING_DIR=$1; shift
 	    ;;
-	v)
-	    VARIANT=${OPTARG}
-	    ;;
-	s)
-	    IMAGE_SIZE=${OPTARG}
-	    ;;
-	p)
-	    ADD_PACKAGES=${OPTARG}
-	    ;;
-	P)
-	    PROXY=${OPTARG}
-	    ;;
-	e)
-	    ENC_DISK_ID=${OPTARG}
-	    ;;
-	\?)
-	    usage "Invalid oprtion [${opt}]"
-	    ;;
-	:)
-	    usage "Option [${opt}] requires an argument"
+	--)
+	    shift; break;
 	    ;;
     esac
 done
@@ -109,6 +127,20 @@ function cleanup() {
 }
 
 trap cleanup EXIT
+
+
+function execute_features() {
+    SDIR=$1
+
+    for feature in ${FEATURES};
+    do
+	if test -e ${FEATUREDIR}/${SDIR}/${feature}.sh;
+	then
+	    ${FEATUREDIR}/${SDIR}/${feature}.sh ${CROOT}
+	fi
+    done
+}
+
 
 # Start working on the image
 
@@ -188,7 +220,6 @@ mkdir -p ${CROOT_ENC}/home
 
 mkdir -p ${CROOT_ENC}/system
 
-
 PACKAGES="lvm2,apt-transport-https,wget,openssl,ca-certificates,"
 PACKAGES+="apt-utils,net-tools,iproute2,cryptsetup-bin"
 
@@ -211,6 +242,8 @@ DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
 DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
 	       LC_ALL=C LANGUAGE=C LANG=C chroot ${CROOT} \
 	       dpkg --configure -a
+
+execute_features "pre"
 
 function cr() {
     chroot ${CROOT} /usr/bin/qemu-arm-static $@
@@ -275,6 +308,23 @@ EOF
 chmod a+x ${CROOT}/chroot_cmd.sh
 
 cr /bin/bash -x -e /chroot_cmd.sh
+
+#### execute_features "chroot"
+cat <<EOF >${CROOT}/chroot_user.sh
+#!/bin/bash
+EOF
+mkdir -p ${CROOT}/chroot
+for feature in ${FEATURES};
+do
+    if test -e ${FEATUREDIR}/chroot/${feature}.sh;
+    then
+	cp ${FEATUREDIR}/chroot/${feature}.sh ${CROOT}/chroot
+	chmod a+x ${CROOT}/chroot/${feature}.sh
+	echo "/chroot/${feature}.sh" >>${CROOT}/chroot_user.sh
+    fi
+done
+chmod a+x ${CROOT}/chroot_user.sh
+cr /bin/bash -x -e /chroot_user.sh
 
 VMLINUZ="$(ls -1 ${CROOT}/boot/vmlinuz-* | sort | tail -n 1)"
 test -z "${VMLINUZ}" && exit 1
@@ -347,10 +397,15 @@ cat <<EOF >${CROOT}/etc/crypttab
 lvm /dev/mmcblk0p3 /dev/disk/by-id/${ENC_DISK_ID} luks,tries=3,keyfile-size=4096,keyfile-offset=512
 EOF
 
+execute_features "post"
+
 test -n "${USER_CHROOT_SH}" \
     && cp "${USER_CHROOT_SH}" ${CROOT}/user_chroot.sh \
     && cr /bin/bash -x -e /user_chroot.sh \
     && rm ${CROOT}/user_chroot.sh
+
+# Remove the policy file
+rm -f ${CROOT}/usr/sbin/policy-rc.d
 
 #echo "START"
 #/bin/bash
