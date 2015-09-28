@@ -1,11 +1,11 @@
 # rpi2bootstrap
 Wrapper around debootstrap to install Debian for Rasberry Pi 2
 
-* Introduction
+# Introduction
 This script creates a ready-to-boot Debian Jessie image
 for a Raspberry Pi 2 (armv7).
 
-* Usage
+# Usage
 
     Usage: create_debian_rpi_img -w working_dir -d distribution -v variant -s image_size
                                  -e enc_disk_id [-p pkglist] [-P proxy] [-c chroot_sh]
@@ -21,7 +21,7 @@ for a Raspberry Pi 2 (armv7).
                    set this to the appropriate url
       chroot_sh    [optional] Script that is executed in chroot
 
-* Example
+# Example
 
 Create a Debian Jessie in the tmp dir '/data/RP/tmp' with 2GByte disk size
 some additional packages and use the given USB stick as the key device.
