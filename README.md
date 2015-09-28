@@ -34,21 +34,21 @@ some additional packages and use the given USB stick as the key device.
 
 The following (Debian) packages are needed to run the script:
 
-* parted
+* *parted*
   For creating partitions of the disk image
-* mount (losetup)
+* *mount (losetup)*
   For mounting the image partitions in the existing system
-* kpartx
+* *kpartx*
   For handling the partitions in the image
-* dmeventd / dmsetup
+* *dmeventd / dmsetup*
   For device mapping
-* cryptsetup-bin
+* *cryptsetup-bin*
   Handling encryption of the third patition
-* lvm2
+* *lvm2*
   The encrypted partition contains LVM volume(s).
-* debootstrap
+* *debootstrap*
   For bootstraping the system
-* qemu-user-static
+* *qemu-user-static*
   For cross-installation: the script can be executed on any
   platform - not only on arm.
   
