@@ -7,8 +7,9 @@ for a Raspberry Pi 2 (armv7).
 
 # Usage
 
-    Usage: create_debian_rpi_img -w working_dir -d distribution -v variant -s image_size
-                                 -e enc_disk_id [-p pkglist] [-P proxy] [-c chroot_sh]
+    Usage: create_debian_rpi_img --working-dir working_dir --distribution distribution --variant variant
+                                 --size image_size --enc-disk-id enc_disk_id --features feature_list
+                                 [--packages pkglist] [--proxy proxy] [-sh-chroot chroot_sh]
     where
       working_dir  is the place where the image is build
                    Some gigs of HD space should be available there.
@@ -20,15 +21,23 @@ for a Raspberry Pi 2 (armv7).
       proxy        [optional] when there is the need to set the http(s)_proxy
                    set this to the appropriate url
       chroot_sh    [optional] Script that is executed in chroot
+      feature_list [optional] Coma seperated list of additional features.
+                   Existing features are:
+                   - selinux: switches on SELinux
+                   - hardening-io: runs the os and ssh scripts from hardening.io
+                   - disk-resize: adds a script to the image that resizes the LVM to the size of the disk.
 
 # Example
 
 Create a Debian Jessie in the tmp dir '/data/RP/tmp' with 2GByte disk size
 some additional packages and use the given USB stick as the key device.
 
-    create_debian_rpi2_img.sh -w /data/RP/tmp -d debian -v jessie \
-     -s 2G -c chroot.sh -p vim,less,iputils-ping,openssh-client,openssh-server \
-     -e usb-My_USB_STICK_AABBCC-0:0
+    create_debian_rpi2_img.sh --working-dir /data/RP/tmp \
+        --distribution debian --variant jessie --size 2G \
+	--packages vim,less,iputils-ping,openssh-client,openssh-server,ntp \
+	--enc-disk-id usb-My_USB_STICK_AABBCC-0:0 \
+	--proxy http://10.0.0.1:3128/ \
+	--features selinux,hardening-io
 
 # Dependencies
 
@@ -51,4 +60,3 @@ The following (Debian) packages are needed to run the script:
 * *qemu-user-static*
   For cross-installation: the script can be executed on any
   platform - not only on arm.
-  
