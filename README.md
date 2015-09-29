@@ -39,6 +39,13 @@ some additional packages and use the given USB stick as the key device.
 	--proxy http://10.0.0.1:3128/ \
 	--features selinux,hardening-io
 
+# Result
+The booting Raspberry Pi 2 with the four PIs.
+
+![Booting with four PIs](doc/images/RPI2.jpg)
+
+As you can see, decrypting the partition takes some seconds.
+
 # Dependencies
 
 The following (Debian) packages are needed to run the script:
