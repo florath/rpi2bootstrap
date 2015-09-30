@@ -36,13 +36,13 @@ mkdir -p ${CR_HARDENING_DIR}
 )
 
 cat <<EOF >${CR_HARDENING_DIR}/hardening_io.pp
-class { hardening_io
+class { hardening_io:
 }
 EOF
 
 mkdir -p ${CR_HARDENING_DIR}/hardening_io/manifests
 cat <<EOF >${CR_HARDENING_DIR}/hardening_io/manifests/init.pp
-class hardening_io() {
+class hardening_io {
   # OS Hardening
   class {'os_hardening':
     enable_ipv6 => "false"

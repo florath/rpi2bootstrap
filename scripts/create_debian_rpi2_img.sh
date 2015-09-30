@@ -10,13 +10,15 @@ function usage() {
     cat <<EOF >&2
 Usage: create_debian_rpi_img --working-dir working_dir --distribution distribution --variant variant
                              --size image_size --enc-disk-id enc_disk_id --features feature_list
+                             --root-size root_size
                              [--packages pkglist] [--proxy proxy] [-sh-chroot chroot_sh]
 where
   working_dir  is the place where the image is build
                Some gigs of HD space should be available there.
   distribution one of debian or ubuntu
   variant      the version, like jessie, stretch or wily
-  image_size   the initial image size, e.g. '1G'
+  image_size   [optional] the initial image size, e.g. '1G' (default: '2G')
+  root_size    [optional] the root partition size in 512 byte blocks, e.g. '2097152' (default: '2097152')
   enc_disk_id  disk id of the USB stick where the decryption key is stored
   pkglist      [optional] comma separated list of additional packages
   proxy        [optional] when there is the need to set the http(s)_proxy
@@ -24,7 +26,10 @@ where
   chroot_sh    [optional] Script that is executed in chroot
   feature_list [optional] Coma seperated list of additional features.
                Existing features are:
-               - selinux: switches on SELinux
+               - custom-kernel: compile custom kernel from https://github.com/raspberrypi/linux
+                   instead of using the kernel from collabora. This gives a 4.1 kernel with 
+                   SELinux instead of a 3.18 without.
+               - selinux: switches on SELinux (custom-kernel is additionally needed)
                - hardening-io: runs the os and ssh scripts from hardening.io
                - disk-resize: adds a script to the image that resizes the LVM to the size of the disk.
 EOF
@@ -34,7 +39,8 @@ EOF
 WORKING_DIR=""
 DISTRIBUTION=""
 VARIANT=""
-IMAGE_SIZE=""
+ROOT_SIZE="2097152"
+IMAGE_SIZE="2G"
 PROXY=""
 ENC_DISK_ID=""
 ADD_PACKAGES=""
@@ -46,7 +52,7 @@ PKGDIR=$(dirname ${BINDIR})
 FEATUREDIR=${PKGDIR}/features
 
 ARGS=$(getopt --options hw:D:V:s:e:p:P:c:f: \
-	      --longoptions "help,working-dir:,distribution:,variant:,size:,enc-disk-id:,packages:,proxy:,sh-chroot:,features:" \
+	      --longoptions "help,working-dir:,distribution:,variant:,size:,enc-disk-id:,packages:,proxy:,sh-chroot:,features:,root-size:" \
 	      -n create_debian_rpi2_img -- "$@")
 test $? -ne 0 && exit 1
 
@@ -84,6 +90,9 @@ do
 	    ;;
 	-w|--working-dir)
 	    shift; WORKING_DIR=$1; shift
+	    ;;
+	--root-size)
+	    shift; ROOT_SIZE=$1; shift
 	    ;;
 	--)
 	    shift; break;
@@ -155,9 +164,11 @@ parted -s ${LOOPDEV} "mklabel msdos"
 # Create /boot/firmware
 parted -s ${LOOPDEV} "unit s" "mkpart primary fat16 2048 249855"
 # Create /root
-parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 249856 2347007"
+PART_ROOT_END_SEC=$(( 249856 + ${ROOT_SIZE} ))
+parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 249856 ${PART_ROOT_END_SEC}"
 # Create /enc
-parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 2347008 -1"
+PART_ENC_START_SEC=$(( ${PART_ROOT_END_SEC} + 1 ))
+parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 ${PART_ENC_START_SEC} -1"
 # Make the partitions available for the system
 kpartx -a ${LOOPDEV}
 
@@ -221,7 +232,7 @@ mkdir -p ${CROOT_ENC}/home
 mkdir -p ${CROOT_ENC}/system
 
 PACKAGES="lvm2,apt-transport-https,wget,openssl,ca-certificates,"
-PACKAGES+="apt-utils,net-tools,iproute2,cryptsetup-bin"
+PACKAGES+="apt-utils,net-tools,iproute2,cryptsetup-bin,ifupdown"
 
 test -n "${ADD_PACKAGES}" && PACKAGES+=",${ADD_PACKAGES}"
 
@@ -250,7 +261,7 @@ function cr() {
 }
 
 echo "deb https://repositories.collabora.co.uk/debian jessie rpi2" \
-     >> ${CROOT}/etc/apt/sources.list
+     > ${CROOT}/etc/apt/sources.list.d/collabora.list
 
 cat <<EOF >${CROOT}/chroot_cmd.sh
 #!/bin/bash
@@ -302,6 +313,11 @@ root:qwe
 dummy:qwe
 LEOF
 
+#echo "deb http://httpredir.debian.org/debian jessie main contrib non-free"
+#     > /etc/apt/sources.list
+
+apt-get --yes update
+
 apt-get clean
 
 EOF
@@ -351,13 +367,19 @@ ff02::2         ip6-allrouters
 127.0.1.1       debianrpi2
 EOF
 
-cat <<EOF >${CROOT}/etc/network/interfaces.d/lo
+mkdir -p ${CROOT}/etc/network
+cat <<EOF >${CROOT}/etc/network/interfaces
+source /etc/network/interfaces.d/*.cfg
+EOF
+
+mkdir -p ${CROOT}/etc/network/interfaces.d
+cat <<EOF >${CROOT}/etc/network/interfaces.d/lo.cfg
 # The loopback network interface
 auto lo
 iface lo inet loopback
 EOF
 
-cat <<EOF >${CROOT}/etc/network/interfaces.d/eth0
+cat <<EOF >${CROOT}/etc/network/interfaces.d/eth0.cfg
 # The primary network interface
 allow-hotplug eth0
 iface eth0 inet dhcp
@@ -410,3 +432,4 @@ rm -f ${CROOT}/usr/sbin/policy-rc.d
 #echo "START"
 #/bin/bash
 #echo "CONTINUE"
+
