@@ -5,6 +5,28 @@ Wrapper around debootstrap to install Debian for Rasberry Pi 2
 This script creates a ready-to-boot Debian Jessie image
 for a Raspberry Pi 2 (armv7).
 
+# Features
+
+* Creates Debian Jessie image ready to use for Raspberry Pi 2
+* Uses original Raspberry Pi Linux Kernel from
+  https://github.com/raspberrypi/linux in version 4.1.y
+  with SELinux enabled
+* Ready to use hardening scripts are installed during bootstrap
+* Sizes of root partition and image can be provided
+* Script to increase the encrypted filesystem to the SD disk
+  included.
+* Image contains three partitions: /, /boot/firmware and /enc
+* /enc is an encrypted filesystem. The key must be stored
+  on a USB stick that must be plugged in during boot.
+* To get a graphical desktop, type *apt-get install task-xfce-desktop*
+  and go for a coffee.
+
+Does not work (at the moment):
+
+* SELinux: does not work in enforcing mode.
+  There are some AVCs that deny access to /etc/crypttab and
+  some lvm_t things. Must be sorted out...
+
 # Usage
 
     Usage: create_debian_rpi_img --working-dir working_dir --distribution distribution --variant variant
