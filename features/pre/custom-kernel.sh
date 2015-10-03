@@ -17,7 +17,7 @@ cd kernel
 
 if test -e linux;
 then
-    (cd linux && git pull)
+    (cd linux && git pull --depth=1)
 else
     git clone --depth=1 https://github.com/raspberrypi/linux linux
 fi
@@ -105,3 +105,57 @@ EOF
      
  make -j6 ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage modules dtbs
 )
+
+CROOT_FW=${CROOT}/boot/firmware
+
+# Compile u-boot
+if test -e u-boot;
+then
+    (cd u-boot && git pull)
+else
+    git clone git://git.denx.de/u-boot.git
+fi
+(cd u-boot
+ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- rpi_2_defconfig
+ make -j6 ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- all
+
+ cp u-boot.bin ${CROOT_FW}
+)
+
+(cd linux
+ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- \
+      INSTALL_MOD_PATH=${CROOT} modules_install
+
+ # Get the complete version number of the kernel from the
+ # name of the /lib/modules directory
+ KERNEL_DESC=$( (cd ${CROOT}/lib/modules && echo *) )
+ 
+ mv ${CROOT_FW}/kernel7.img ${CROOT_FW}/kernel7-backup.img || true
+ scripts/mkknlimg arch/arm/boot/zImage ${CROOT_FW}/kernel7.img
+ cp ${CROOT_FW}/kernel7.img ${CROOT}/boot/vmlinuz-${KERNEL_DESC}
+ cp System.map ${CROOT}/boot/System.map-${KERNEL_DESC}
+ cp .config ${CROOT}/boot/config-${KERNEL_DESC}
+ 
+ cp arch/arm/boot/dts/*.dtb ${CROOT_FW}
+ mkdir -p ${CROOT_FW}/overlays
+ cp arch/arm/boot/dts/overlays/*.dtb* ${CROOT_FW}/overlays/
+ cp arch/arm/boot/dts/overlays/README ${CROOT_FW}/overlays/
+
+ # Write u-boot config file
+ cat <<EOF >${CROOT_FW}/boot.cfg
+setenv fdtfile bcm2709-rpi-2-b.dtb
+
+mmc dev 0
+fatload mmc 0:1 \${kernel_addr_r} kernel7.img
+fatload mmc 0:1 \${ramdisk_addr_r} initrd7.img
+fatload mmc 0:1 \${fdt_addr_r} \${fdtfile}
+setenv bootargs "earlyprintk console=tty0 console=ttyAMA0 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait initrd=\${ramdisk_addr_r}"
+bootz \${kernel_addr_r} \${ramdisk_addr_r} \${fdt_addr_r}
+EOF
+
+ # Create scr file from config
+ mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 \
+	 -n "RPi2 Boot Script" -d ${CROOT_FW}/boot.cfg ${CROOT_FW}/boot.scr
+)
+
+# mkimage -A arm -O linux -T ramdisk -C gzip -a 0x00000000 -e 0x00000000 -n "RPi2 initrd" -d ${CROOT}/boot/initrd.img-4.1.9-v7+ ${CROOT_FW}/initrd7.img

@@ -10,4 +10,4 @@ apt-get --yes install selinux-basics auditd
 
 # When everything is fixed:
 # apt-get --yes install selinux-basics auditd selinux-policy-default
-selinux-activate
+## XXX Problem!!! selinux-activate

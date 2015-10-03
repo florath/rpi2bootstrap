@@ -300,7 +300,7 @@ apt-get --force-yes --yes install collabora-obs-archive-keyring || true
 # This should do now without 'true': key is now available.
 apt-get --yes update
 
-apt-get --yes install linux-image-3.18.0-trunk-rpi2
+#apt-get --yes install linux-image-3.18.0-trunk-rpi2
 apt-get --yes install raspberrypi-bootloader-nokernel
 apt-get --yes install flash-kernel
 
@@ -390,7 +390,7 @@ cat <<EOF >${CROOT}/boot/firmware/config.txt
 # For more options and information see 
 # http://www.raspberrypi.org/documentation/configuration/config-txt.md
 # Some settings may impact device functionality. See link above for details
-
+kernel=u-boot.bin
 EOF
 
 echo 'dwc_otg.lpm_enable=0 console=tty1 root=/dev/mmcblk0p2 elevator=deadline rootfstype=ext4 rootwait' > ${CROOT}/boot/firmware/cmdline.txt
