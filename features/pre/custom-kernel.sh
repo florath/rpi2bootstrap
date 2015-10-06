@@ -102,7 +102,7 @@ export PATH=${PWD}/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64
 EOF
 
  fi
-     
+
  make -j6 ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage modules dtbs
 )
 
@@ -149,7 +149,9 @@ mmc dev 0
 fatload mmc 0:1 \${kernel_addr_r} kernel7.img
 fatload mmc 0:1 \${ramdisk_addr_r} initrd7.img
 fatload mmc 0:1 \${fdt_addr_r} \${fdtfile}
-setenv bootargs "earlyprintk console=tty0 console=ttyAMA0 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait initrd=\${ramdisk_addr_r}"
+setenv bootargs "ignore_loglevel loglevel=7 logo.nologo selinux=0 initrd=\${ramdisk_addr_r} rfs=exists:file=/dev/mmcblk0p2,wait=30;decrypt:dev=/dev/mmcblk0p2,name=decdisk,keyfile=/dev/disk/by-id/usb-Intenso_Rainbow_Line_77FBFA68-0:0,decmod=luks,tries=3,keyfile_size=4096,keyfile_offset=512;exists:file=/dev/mapper/decdisk,wait=15;lvm:scan;exists:file=/dev/rpi2vg/enc_vol;root:dev=/dev/rpi2vg/enc_vol bv=udev"
+#setenv bootargs "debug ignore_loglevel loglevel=7 logo.nologo selinux=0 initrd=${ramdisk_addr_r} rfs=local:path=/dev/rpi2vg/enc_vol bv=lvm2,udev rootwait"
+#setenv bootargs "earlyprintk console=tty0 console=ttyAMA0 root=/dev/rpi2vg/enc_vol rootfstype=ext4 rootwait initrd=\${ramdisk_addr_r}"
 bootz \${kernel_addr_r} \${ramdisk_addr_r} \${fdt_addr_r}
 EOF
 

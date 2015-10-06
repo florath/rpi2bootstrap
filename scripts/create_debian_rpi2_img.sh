@@ -8,10 +8,11 @@ set -e
 function usage() {
     test -n "$1" && echo "*** ERROR: $1" >&2
     cat <<EOF >&2
-Usage: create_debian_rpi_img --working-dir working_dir --distribution distribution --variant variant
-                             --size image_size --enc-disk-id enc_disk_id --features feature_list
-                             --root-size root_size
-                             [--packages pkglist] [--proxy proxy] [-sh-chroot chroot_sh]
+Usage: create_debian_rpi_img 
+          --working-dir working_dir --distribution distribution 
+          --variant variant --size image_size --enc-disk-id enc_disk_id 
+          --features feature_list --root-size root_size
+          [--packages pkglist] [--proxy proxy] [-sh-chroot chroot_sh]
 where
   working_dir  is the place where the image is build
                Some gigs of HD space should be available there.
@@ -119,7 +120,8 @@ mkdir -p ${WORKING_DIR}
 CROOT=${WORKING_DIR}/root
 mkdir -p ${CROOT}
 CROOT_FW=${CROOT}/boot/firmware
-CROOT_ENC=${CROOT}/enc
+##CROOT_ENC=${CROOT}/enc
+CROOT_ENC=${CROOT}
 
 # If something nasty happens: cleanup
 function cleanup() {
@@ -164,18 +166,20 @@ parted -s ${LOOPDEV} "mklabel msdos"
 # Create /boot/firmware
 parted -s ${LOOPDEV} "unit s" "mkpart primary fat16 2048 249855"
 # Create /root
-PART_ROOT_END_SEC=$(( 249856 + ${ROOT_SIZE} ))
-parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 249856 ${PART_ROOT_END_SEC}"
+##PART_ROOT_END_SEC=$(( 249856 + ${ROOT_SIZE} ))
+##parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 249856 ${PART_ROOT_END_SEC}"
 # Create /enc
-PART_ENC_START_SEC=$(( ${PART_ROOT_END_SEC} + 1 ))
-parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 ${PART_ENC_START_SEC} -1"
+##PART_ENC_START_SEC=$(( ${PART_ROOT_END_SEC} + 1 ))
+##parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 ${PART_ENC_START_SEC} -1"
+parted -s ${LOOPDEV} "unit s" "mkpart primary ext4 249856 -1"
 # Make the partitions available for the system
 kpartx -a ${LOOPDEV}
 
 # Typically the kernel need some time to get the partitions up
 # and running.
 LOOPDEVBASE=$(echo ${LOOPDEV} | cut -d "/" -f 3)
-for p in 1 2 3;
+##for p in 1 2 3;
+for p in 1 2;
 do
     while test ! -e /dev/mapper/${LOOPDEVBASE}p${p};
     do
@@ -196,12 +200,13 @@ echo "*** PLEASE copy over the random keys to the USB stick, e.g.:"
 echo "*** dd if=${WORKING_DIR}/rpi2-usb-random.key seek=1 of=/dev/disk/by-id/${ENC_DISK_ID}"
 
 # Format /
-LOOPDEVROOT=/dev/mapper/${LOOPDEVBASE}p2
-mkfs.ext4 ${LOOPDEVROOT}
-mount ${LOOPDEVROOT} ${CROOT}
+##LOOPDEVROOT=/dev/mapper/${LOOPDEVBASE}p2
+##mkfs.ext4 ${LOOPDEVROOT}
+##mount ${LOOPDEVROOT} ${CROOT}
 
 # The rest goes to encrypted LVM (enc)
-LOOPDEVENC=/dev/mapper/${LOOPDEVBASE}p3
+##LOOPDEVENC=/dev/mapper/${LOOPDEVBASE}p3
+LOOPDEVENC=/dev/mapper/${LOOPDEVBASE}p2
 
 cryptsetup luksFormat --batch-mode --cipher=aes-xts-plain64 --hash=sha512 \
 	   --key-size=512 \
@@ -217,7 +222,7 @@ pvcreate ${ENCDISK}
 vgcreate rpi2vg ${ENCDISK}
 lvcreate -l 100%FREE -n enc_vol rpi2vg
 mkfs.ext4 /dev/rpi2vg/enc_vol
-mkdir -p ${CROOT_ENC}
+## mkdir -p ${CROOT_ENC}
 mount /dev/rpi2vg/enc_vol ${CROOT_ENC}
 
 # Format /boot/firmware
@@ -227,12 +232,15 @@ mkdir -p ${CROOT_FW}
 mount /dev/mapper/${LOOPDEVBASE}p1 ${CROOT_FW}
 
 # Use /enc for /home and some system things
-mkdir -p ${CROOT_ENC}/home
-
-mkdir -p ${CROOT_ENC}/system
+## mkdir -p ${CROOT_ENC}/home
+## mkdir -p ${CROOT_ENC}/system
 
 PACKAGES="lvm2,apt-transport-https,wget,openssl,ca-certificates,"
-PACKAGES+="apt-utils,net-tools,iproute2,cryptsetup-bin,ifupdown"
+PACKAGES+="apt-utils,net-tools,iproute2,cryptsetup-bin,cryptsetup,ifupdown,"
+PACKAGES+="busybox,"
+# And the packages that are needed to get the init4boot up and running
+PACKAGES+="open-iscsi,aufs-tools,mdadm,multipath-tools,kpartx,klibc-utils"
+
 
 test -n "${ADD_PACKAGES}" && PACKAGES+=",${ADD_PACKAGES}"
 
@@ -304,8 +312,8 @@ apt-get --yes update
 apt-get --yes install raspberrypi-bootloader-nokernel
 apt-get --yes install flash-kernel
 
-mv /home /enc
-ln -sf /enc/home /home
+##mv /home /enc
+##ln -sf /enc/home /home
 
 useradd --create-home dummy
 chpasswd <<LEOF
@@ -342,18 +350,10 @@ done
 chmod a+x ${CROOT}/chroot_user.sh
 cr /bin/bash -x -e /chroot_user.sh
 
-VMLINUZ="$(ls -1 ${CROOT}/boot/vmlinuz-* | sort | tail -n 1)"
-test -z "${VMLINUZ}" && exit 1
-cp ${VMLINUZ} ${CROOT}/boot/firmware/kernel7.img
-INITRD="$(ls -1 ${CROOT}/boot/initrd.img-* | sort | tail -n 1)"
-test -z "${INITRD}" && exit 1
-cp ${INITRD} ${CROOT}/boot/firmware/initrd7.img
-
 cat <<EOF >${CROOT}/etc/fstab
 proc            /proc           proc    defaults          0       0
-/dev/mmcblk0p2  /               ext4    defaults,noatime  0       1
+/dev/rpi2vg/enc_vol  /          ext4    defaults,noatime  0       1
 /dev/mmcblk0p1  /boot/firmware  vfat    defaults          0       2
-/dev/rpi2vg/enc_vol  /enc       ext4    defaults          0       2
 EOF
 
 echo debianrpi2 >${CROOT}/etc/hostname
@@ -393,13 +393,12 @@ cat <<EOF >${CROOT}/boot/firmware/config.txt
 kernel=u-boot.bin
 EOF
 
-echo 'dwc_otg.lpm_enable=0 console=tty1 root=/dev/mmcblk0p2 elevator=deadline rootfstype=ext4 rootwait' > ${CROOT}/boot/firmware/cmdline.txt
-
 # XXX There are two links created - I have no idea why and whereto
 # ln -sf ${CROOT}/... config
 # ln -sf ${CROOT}/... cmdline
 
 # Load sound module on boot
+# ToDo: Handle this also in the initramfs
 mkdir -p ${CROOT}/lib/modules-load.d
 cat <<EOF >${CROOT}/lib/modules-load.d/rpi2.conf
 snd_bcm2835
@@ -416,7 +415,7 @@ EOF
 
 cat <<EOF >${CROOT}/etc/crypttab
 # <target name> <source device>         <key file>      <options>
-lvm /dev/mmcblk0p3 /dev/disk/by-id/${ENC_DISK_ID} luks,tries=3,keyfile-size=4096,keyfile-offset=512
+lvm /dev/mmcblk0p2 /dev/disk/by-id/${ENC_DISK_ID} luks,tries=3,keyfile-size=4096,keyfile-offset=512
 EOF
 
 execute_features "post"
@@ -426,10 +425,38 @@ test -n "${USER_CHROOT_SH}" \
     && cr /bin/bash -x -e /user_chroot.sh \
     && rm ${CROOT}/user_chroot.sh
 
+# The initrd must be build at the end:
+# in between there can be packages which possible change the behaviour
+cat <<EOF >${CROOT}/chroot_cmd.sh
+#!/bin/bash
+
+set -e
+set -x
+
+export KERNEL_DESC=\$( (cd /lib/modules && echo *) )
+
+# Include the cryptsetup thingies in each case
+# (The current check of mkinitramfs fails in this case.)
+CRYPTSETUP=yes mkinitramfs -o /boot/initrd.img-\${KERNEL_DESC} \${KERNEL_DESC}
+EOF
+chmod a+x ${CROOT}/chroot_cmd.sh
+
+cr /bin/bash -x -e /chroot_cmd.sh
+
+VMLINUZ="$(ls -1 ${CROOT}/boot/vmlinuz-* | sort | tail -n 1)"
+test -z "${VMLINUZ}" && exit 1
+cp ${VMLINUZ} ${CROOT}/boot/firmware/kernel7.img
+INITRD="$(ls -1 ${CROOT}/boot/initrd.img-* | sort | tail -n 1)"
+test -z "${INITRD}" && exit 1
+
+mkimage -A arm -O linux -T ramdisk -C gzip -a 0x00000000 -e 0x00000000 \
+	-n "RPi2 initrd" -d ${INITRD} ${CROOT_FW}/initrd7.img
+cp ${INITRD} ${CROOT_FW}/initrd7.org
+
 # Remove the policy file
 rm -f ${CROOT}/usr/sbin/policy-rc.d
 
-#echo "START"
-#/bin/bash
-#echo "CONTINUE"
+echo "START"
+/bin/bash
+echo "CONTINUE"
 

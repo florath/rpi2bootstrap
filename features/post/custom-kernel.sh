@@ -11,6 +11,7 @@ CROOT_FW=${CROOT}/boot/firmware
 
 mkimage -A arm -O linux -T ramdisk -C gzip -a 0x00000000 -e 0x00000000 \
 	-n "RPi2 initrd" -d ${CROOT}/boot/initrd.img-* ${CROOT_FW}/initrd7.img
+cp ${CROOT}/boot/initrd.img-* ${CROOT_FW}/initrd7.org
 
 if false;
 then
