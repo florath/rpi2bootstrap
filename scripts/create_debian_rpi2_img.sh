@@ -300,7 +300,8 @@ for modwparam in ${MODULES}; do
 	if test -e ${mdir}/${module}.sh; then
 	    cp ${mdir}/${module}.sh ${CROOT}/chroot
 	    chmod a+x ${CROOT}/chroot
-	    echo "/chroot/${module}.sh" >>${CROOT}/chroot_user.sh
+	    echo "/chroot/${module}.sh chroot ${modparams}" \
+		 >>${CROOT}/chroot_user.sh
 	fi
     done
 done
