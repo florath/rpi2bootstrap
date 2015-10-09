@@ -17,7 +17,7 @@ function init4boot_initrd_create() {
     KERNEL_DESC=$( (cd ${CROOT}/lib/modules && echo *) )
 
     ${CONTRIB_DIR}/init4boot/i4b-mkinitramfs \
-		  --output= ${CROOT}/boot/initrd.img-${KERNEL_DESC} \
+		  --output=${CROOT}/boot/initrd.img-${KERNEL_DESC} \
 		  --root-dir=${CROOT} --plugins=${CONTRIB_DIR}/init4boot
 }
 

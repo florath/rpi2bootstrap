@@ -72,6 +72,11 @@ As you can see, decrypting the partition takes some seconds.
 
 The following (Debian) packages are needed to run the script:
 
+* *debootstrap*
+  For bootstraping the system. Please note that the current version
+  in Debian Jessie has some problems when it comes to the installation
+  of python.  If you run into problems here, install debootstrap from
+  stretch.  The script is known to work with version 1.0.72.
 * *parted*
   For creating partitions of the disk image
 * *mount (losetup)*
@@ -84,8 +89,6 @@ The following (Debian) packages are needed to run the script:
   Handling encryption of the third patition
 * *lvm2*
   The encrypted partition contains LVM volume(s).
-* *debootstrap*
-  For bootstraping the system
 * *qemu-user-static*
   For cross-installation: the script can be executed on any
   platform - not only on arm.

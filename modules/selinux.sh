@@ -15,7 +15,7 @@ function selinux_pre_chroot() {
 }
 
 function selinux_chroot() {
-    dpkg -i /root/debs/selinux-policy-default_2.20140421-11_all.deb
+    dpkg -i /root/contrib/debs/selinux-policy-default_2.20140421-11_all.deb
     apt-get --yes install selinux-basics auditd
     ## XXX if everything is tested:
     # selinux-activate

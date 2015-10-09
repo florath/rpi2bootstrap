@@ -12,7 +12,7 @@ function kernel_prepare_contrib() {
     if test -e linux;
     then
 	# ToDo: This might fail some times. What to do?
-	(cd linux && git pull --depth=1)
+	(cd linux && git pull --update-shallow)
     else
 	git clone --depth=1 https://github.com/raspberrypi/linux linux
     fi
@@ -93,6 +93,7 @@ EOF
     fi
 
     make -j6 ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage modules dtbs
+}
     
 function kernel_post_chroot() {
     cd ${CONTRIB_DIR}/linux

@@ -17,6 +17,8 @@ PROXY=""
 ADD_PACKAGES=""
 USER_MODULES_DIR=""
 MODULES=""
+APT_PROXY=""
+APT_MIRROR="http://httpredir.debian.org/debian"
 
 function usage() {
     test -n "$1" && echo "*** ERROR: $1" >&2
@@ -35,6 +37,9 @@ where
   pkglist      [optional] comma separated list of additional packages
   proxy        [optional] when there is the need to set the http(s)_proxy
                set this to the appropriate url
+  apt-mirror   [optional] use the given mirror for bootstrapping
+               (default 'http://httpredir.debian.org/debian')
+  apt-proxy    [optional] use the proxy for downloading packages
   modules_dir  [optional] Directory with user defined modules
   modules      [optional] Space seperated list of additional features.
                Existing modules are:
@@ -56,7 +61,7 @@ EOF
 }
 
 LONGOPTSSTR="help,working-dir:,distribution:,variant:,size:,"
-LONGOPTSSTR+="packages:,proxy:,modules-dir:"
+LONGOPTSSTR+="packages:,proxy:,modules-dir:,apt-proxy:,apt-mirror:"
 
 ARGS=$(getopt --options h \
 	      --longoptions ${LONGOPTSSTR} \
@@ -68,29 +73,35 @@ eval set -- "$ARGS";
 while true;
 do
     case "$1" in
-	-D|--distribution)
+	--distribution)
 	    shift; DISTRIBUTION=$1 ;shift
 	    ;;
-	-P|--proxy)
+	--proxy)
 	    shift; PROXY=$1; shift
 	    ;;
-	-V|--variant)
+	--variant)
 	    shift; VARIANT=$1; shift
 	    ;;
-	-m|--modules-dir)
+	--modules-dir)
 	    shift; USER_MODULES_DIR=$1; shift
 	    ;;
 	-h|--help)
 	    usage ""
 	    ;;
-	-p|--packages)
+	--packages)
 	    shift; ADD_PACKAGES=$1; shift
 	    ;;
-	-s|--size)
+	--size)
 	    shift; IMAGE_SIZE=$1; shift
 	    ;;
-	-w|--working-dir)
+	--working-dir)
 	    shift; WORKING_DIR=$1; shift
+	    ;;
+	--apt-proxy)
+	    shift; APT_PROXY=$1; shift
+	    ;;
+	--apt-mirror)
+	    shift; APT_MIRROR=$1; shift
 	    ;;
 	--)
 	    shift; break;
@@ -99,7 +110,8 @@ do
 done
 
 # The rest are the modules (with possible configuation options)
-MODULES="$@"
+# Add the system modules: kernel and boot thingies
+MODULES="armtools: init4boot: kernel: uboot: $@"
 
 test -z "${WORKING_DIR}" && usage "working dir [-w] not set"
 test -z "${DISTRIBUTION}" && usage "distribution [-d] not set"
@@ -148,7 +160,7 @@ function execute_modules() {
 	modparams=$(echo ${modwparam} | cut -d ":" -f 2-)
 	for mdir in ${MODULES_DIR} ${USER_MODULES_DIR}; do
 	    if test -e ${mdir}/${module}.sh; then
-		echo ". ${mdir}/${module}.sh ${PHASE} ${modparams}"
+		. ${mdir}/${module}.sh ${PHASE} ${modparams}
 	    fi
 	done
     done
@@ -196,19 +208,32 @@ mount /dev/mapper/${LOOPDEVBASE}p1 ${CROOT_FW}
 
 # PACKAGES needs some initializations and also a prefix
 # that do not end the line with a comma
-PACKAGES="apt-transport-https,openssl,ca-certificates,"
+PACKAGES="apt-transport-https,openssl,ca-certificates,python-minimal,"
 execute_modules package_dep
 PACKAGES+="apt-utils,net-tools,iproute2,ifupdown"
 
 test -n "${ADD_PACKAGES}" && PACKAGES+=",${ADD_PACKAGES}"
 
-debootstrap --arch=armhf \
-	    --include=${PACKAGES} \
-	    --components=main,contrib,non-free \
-	    --variant=minbase --verbose --foreign \
-	    ${VARIANT} \
-	    ${CROOT} \
-	    http://httpredir.debian.org/debian
+(
+    if test -n "${APT_PROXY}"; then
+	export http_proxy=${APT_PROXY}
+	export https_proxy=${APT_PROXY}
+    fi
+    debootstrap --arch=armhf \
+		--include=${PACKAGES} \
+		--components=main,contrib,non-free \
+		--variant=minbase --verbose --foreign \
+		${VARIANT} \
+		${CROOT} \
+		${APT_MIRROR}
+)
+
+# Re-set the http(s)_proxy
+if test -n "${PROXY}";
+then
+    export http_proxy=${PROXY}
+    export https_proxy=${PROXY}
+fi
 
 cp /usr/bin/qemu-arm-static ${CROOT}/usr/bin
 
@@ -273,7 +298,7 @@ apt-get --yes install flash-kernel
 ##mv /home /enc
 ##ln -sf /enc/home /home
 
-useradd --create-home dummy
+useradd --create-home --shell /bin/bash dummy
 chpasswd <<LEOF
 root:qwe
 dummy:qwe
@@ -299,7 +324,7 @@ for modwparam in ${MODULES}; do
     for mdir in ${MODULES_DIR} ${USER_MODULES_DIR}; do
 	if test -e ${mdir}/${module}.sh; then
 	    cp ${mdir}/${module}.sh ${CROOT}/chroot
-	    chmod a+x ${CROOT}/chroot
+	    chmod a+x ${CROOT}/chroot/${module}.sh
 	    echo "/chroot/${module}.sh chroot ${modparams}" \
 		 >>${CROOT}/chroot_user.sh
 	fi
