@@ -34,6 +34,7 @@ EOF
 class hardening_io {
   # OS Hardening
   class {'os_hardening':
+    enable_ipv4_forwarding => "false",
     enable_ipv6 => "false"
   }
 

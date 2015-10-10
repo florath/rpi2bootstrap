@@ -26,7 +26,7 @@ function usage() {
 Usage: create_debian_rpi_img 
           --working-dir working_dir [--size image_size]
           --distribution distribution --variant variant 
-          [--packages pkglist] [--proxy proxy] [--modules_dir mod_dir]
+          [--packages pkglist] [--proxy proxy] [--modules-dir mod_dir]
 where
   working_dir  is the place where the image is build
                Some gigs of HD space should be available there.
